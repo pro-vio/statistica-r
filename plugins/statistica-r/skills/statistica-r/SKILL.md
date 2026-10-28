@@ -83,21 +83,53 @@ actualizarea lunară nu-l vede, iar biblioteca de după o actualizare majoră nu
    de alta. Toleranța implicită, 0,01, e cea a rotunjirii la două zecimale; dacă rezultatele nu sunt
    rotunjite, se dă `--toleranta` mai mică.
 
+## Tabelul exportat: lizibil, complet, cu fiecare coloană explicată
+
+Utilizatorul citește tabelul în panoul „Date” ca să înțeleagă pe ce a rulat regresia și ca să aleagă alte
+variabile de pus în ea. De aceea exportul are trei reguli:
+
+1. **Toate câmpurile unității de analiză, nu doar cele din regresie.** Pe lângă variabilele modelului intră
+   tot ce se știe despre rând din import: sumele, bazele, numărul de rânduri adunate, clasificările deja
+   făcute de proiect. Coloanele din regresie se marchează, iar restul stau alături, ca să se vadă ce s-ar
+   putea adăuga. Ce nu poate pleca din proiect nu intră: denumiri și identificatori de persoane (la o
+   persoană fizică autorizată, CIF-ul e codul numeric personal). Identificatorii se scriu ca numere de ordine.
+2. **Valori lizibile.** Luna ca „2024-01”, nu ca indice; numele grupurilor întregi; sumele în lei, cu două
+   zecimale. Indicele de care are nevoie modelul (t, d) îl calculează scriptul R din coloana lizibilă.
+3. **Rapoartele dintre sume, când legea dă o cotă.** Dacă legea spune că o contribuție e un procent din
+   bază, tabelul are coloana „contribuție raportată la bază”, câte una pe fiecare bază posibilă, goală
+   când baza e cel mult zero. Așa se vede pe rând dacă se păstrează cota. Toleranța cu care raportul
+   „se potrivește” cu cota e decizia autorului: până o dă, nu se scrie nicio coloană de potrivire.
+
+Fiecare coloană are explicația ei în `<tabel>.variabile.json`, lângă tabel:
+
+```json
+{"rand": "ce e un rând",
+ "variabile": {"luna": {"eticheta": "Luna", "in_regresie": true, "explicatie": "ce înseamnă, de unde vine"}}}
+```
+
+Lista coloanelor se ține într-un singur loc, în scriptul de export: nume, etichetă, dacă intră în regresie
+și explicație. Din lista asta se scriu și capul tabelului, și fișierul cu explicații. Explicațiile scrise de
+mână în dosar rămân în urmă la prima coloană schimbată. Scriptul R citește numai coloanele modelului, cu
+`fread(select = ...)`, ca o coloană adăugată să nu schimbe estimarea.
+
 ## Previzualizarea: panoul „Date” și panoul „Rezultate”
 
 Utilizatorul vrea să vadă verificarea ca într-un program de statistică, în panoul de previzualizare din
 Claude. `scripts/previzualizare.py <dosar> [port]` pornește un server pe 127.0.0.1 (implicit 8775) cu două
 panouri:
 
-- **Date:** tabelele `.csv` și `.csv.gz` din dosar, rând cu rând, cu numărul rândului și pagini de câte 200;
+- **Date:** tabelele `.csv` și `.csv.gz` din dosar, rând cu rând, cu numărul rândului și pagini de câte 200.
+  Coloanele care intră în regresie au capul colorat și eticheta „în regresie”; celelalte sunt simple. La
+  clic dreapta pe capul unei coloane apare explicația ei;
 - **Rezultate:** în stânga, un arbore pe secțiuni; în dreapta, fiecare model cu tabelul coeficienților
-  (coeficient, eroare standard, t, p), cu N, numărul de grupuri, tipul erorii, R² și formula; apoi notele
-  și raportul de comparație cu Python.
+  (coeficient, eroare standard, t, p), cu N, numărul de grupuri, tipul erorii, R² și formula, plus
+  scriptul R care le-a produs, cu data rulării și versiunile. Comparația cu Python nu stă aici: utilizatorul
+  vrea în panou rezultatele rulării R, iar raportul comparației se dă în chat.
 
 Ca un model să apară în „Rezultate”, scriptul R încarcă `scripts/iesire.R` și cheamă `iesire_model(m,
 sectiune, titlu)` după fiecare estimare, iar la sfârșit `iesire_scrie("<dosar>/<nume>_iesire.json")`.
 Secțiunea se scrie cu „ / ” între niveluri (`"prag / grup / placebo 2024-09"`), iar arborele urmează
-nivelurile. Raportul `compara.py` se scrie în același dosar, ca `comparatie*.md`.
+nivelurile. `iesire_scrie` pune lângă tabele și textul scriptului care a rulat.
 
 Serverul se pornește din panoul de previzualizare: în `.claude/launch.json` al proiectului se adaugă o
 intrare cu `python <skill>/scripts/previzualizare.py <dosar> 8775`, apoi se cheamă `preview_start` cu

@@ -54,6 +54,16 @@ table.o td { text-align:right; }
 .md table { border-collapse:collapse; margin:6px 0; }
 .md th, .md td { border:1px solid var(--linie); padding:2px 8px; }
 .gol { color:var(--slab); padding:20px; }
+#explicatie { display:none; position:fixed; z-index:10; max-width:360px; background:var(--fond); color:var(--text); border:1px solid var(--linie); border-radius:4px; box-shadow:0 4px 14px rgba(0,0,0,.18); padding:8px 10px; }
+#explicatie div { margin-top:4px; }
+#explicatie .slab { color:var(--slab); font-size:12px; border-top:1px solid var(--linie); padding-top:4px; }
+table.g thead th:not(.nr) { cursor:context-menu; vertical-align:bottom; }
+table.g th.reg { background:var(--sel); border-bottom:2px solid var(--accent); }
+table.g td.reg { box-shadow:inset 2px 0 0 var(--accent); }
+table.g th .eti { display:block; font-size:10px; font-weight:500; color:var(--accent); text-transform:uppercase; letter-spacing:.03em; }
+#explicatie .slab2 { color:var(--slab); font-size:12px; }
+pre.cod { font:12px/1.5 Consolas, "Cascadia Mono", monospace; background:var(--panou); border:1px solid var(--linie); padding:8px 12px; overflow:auto; white-space:pre; margin:0; }
+pre.cod .ln { display:inline-block; width:3.2em; color:var(--slab); user-select:none; }
 @media (max-width:700px) { nav { width:42%; min-width:0; } .foaie { padding:10px 12px; } }
 </style>
 </head>
@@ -79,6 +89,7 @@ table.o td { text-align:right; }
     <div class="foaie" id="foaie"><div class="gol">Alege din stânga.</div></div>
   </section>
 </main>
+<div id="explicatie"></div>
 <script>
 const PAG = 200;
 let seturi = [], setCurent = null, deLa = 0, R = null;
@@ -106,21 +117,42 @@ async function arataDate() {
   const s = setCurent;
   const d = await (await fetch(`/api/date?set=${encodeURIComponent(s.nume)}&de_la=${deLa}&cate=${PAG}`)).json();
   const num = v => v !== "" && !isNaN(v);
-  $("grila").innerHTML = "<thead><tr><th class='nr'></th>" + s.coloane.map(c => `<th>${esc(c)}</th>`).join("") + "</tr></thead><tbody>" +
+  const V = c => (s.variabile || {})[c] || {};
+  const reg = s.coloane.map(c => !!V(c).in_regresie);
+  $("grila").innerHTML = "<thead><tr><th class='nr'></th>" + s.coloane.map((c, i) =>
+      `<th class="${reg[i] ? "reg" : ""}" title="${esc(c)}">${esc(V(c).eticheta || c)}${reg[i] ? '<span class="eti">în regresie</span>' : ""}</th>`).join("") +
+    "</tr></thead><tbody>" +
     d.randuri.map((r, i) => `<tr><td class="nr">${(deLa + i + 1).toLocaleString("ro-RO")}</td>` +
-      r.map(v => `<td class="${num(v) ? "num" : ""}">${esc(v)}</td>`).join("") + "</tr>").join("") + "</tbody>";
+      r.map((v, j) => `<td class="${num(v) ? "num" : ""}${reg[j] ? " reg" : ""}">${esc(v)}</td>`).join("") + "</tr>").join("") + "</tbody>";
   $("poz").textContent = `rândurile ${(deLa + 1).toLocaleString("ro-RO")}–${Math.min(deLa + PAG, s.randuri).toLocaleString("ro-RO")} din ${s.randuri.toLocaleString("ro-RO")}`;
   $("info").textContent = `${s.nume}: ${s.randuri.toLocaleString("ro-RO")} rânduri, ${s.coloane.length} variabile`;
   document.querySelector(".grila").scrollTop = 0;
+  $("grila").querySelectorAll("thead th:not(.nr)").forEach((th, i) => th.oncontextmenu = ev => {
+    ev.preventDefault();
+    const c = s.coloane[i], v = (s.variabile || {})[c] || {};
+    const p = $("explicatie");
+    p.innerHTML = `<b>${esc(v.eticheta || c)}</b> <span class="slab2">(${esc(c)}; ${v.in_regresie ? "intră în regresie" : "nu intră în regresie"})</span>` +
+      `<div>${v.explicatie ? esc(v.explicatie) : "Nu există explicație pentru coloana aceasta."}</div>` +
+      (s.rand ? `<div class="slab">${esc(s.rand)}</div>` : "");
+    p.style.display = "block";
+    p.style.left = Math.min(ev.clientX, innerWidth - p.offsetWidth - 8) + "px";
+    p.style.top = (ev.clientY + 10) + "px";
+  });
 }
+document.addEventListener("click", () => { $("explicatie").style.display = "none"; });
+document.addEventListener("keydown", e => { if (e.key === "Escape") $("explicatie").style.display = "none"; });
 
 // Rezultate: arbore din secțiuni („a / b / c”), apoi elementele secțiunii alese
 async function incarcaRezultate() {
   R = await (await fetch("/api/rezultate")).json();
   const radacina = { copii: new Map(), elemente: [] };
   const nod = cale => { let n = radacina; for (const p of cale) { if (!n.copii.has(p)) n.copii.set(p, { copii: new Map(), elemente: [] }); n = n.copii.get(p); } return n; };
-  R.comparatii.forEach(c => nod(["Comparația cu Python", c.fisier]).elemente.push({ tip: "md", titlu: c.fisier, text: c.text }));
-  R.iesiri.forEach(f => f.elemente.forEach(e => nod([f.fisier.replace(/_iesire\.json$/, "")].concat(e.sectiune.split(" / "))).elemente.push(e)));
+  R.iesiri.forEach(f => {
+    const rad = f.fisier.replace(/_iesire\.json$/, "");
+    if (f.script) nod([rad, "Scriptul"]).elemente.push({ tip: "script", titlu: f.script.cale, text: f.script.text,
+      sectiune: `rulat ${f.creat}; ${f.r}; fixest ${(f.pachete || {}).fixest || ""}` });
+    f.elemente.forEach(e => nod([rad, "Tabelele"].concat(e.sectiune.split(" / "))).elemente.push(e));
+  });
   const frunze = [];
   const randeaza = (n, nume, adancime) => {
     let h = "";
@@ -155,6 +187,8 @@ function arataElemente(el) {
         e.randuri.map(r => "<tr>" + r.map(v => `<td>${typeof v === "number" ? f(v, 4) : esc(v)}</td>`).join("") + "</tr>").join("") + "</tbody></table></div>";
     }
     if (e.tip === "nota") return `<div class="el"><h3>${esc(e.titlu)}</h3>${unde}<div class="nota">${esc(e.text)}</div></div>`;
+    if (e.tip === "script") return `<div class="el"><h3>${esc(e.titlu)}</h3>${unde}<pre class="cod">` +
+      e.text.split("\n").map((l, i) => `<span class="ln">${i + 1}</span>${esc(l)}`).join("\n") + "</pre></div>";
     if (e.tip === "md") return `<div class="el md">${md(e.text)}</div>`;
     return "";
   }).join("");

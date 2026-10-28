@@ -6,7 +6,8 @@
 
 Panoul „Date” arată tabelele din dosar (.csv și .csv.gz), rând cu rând, cu numărul rândului și pagini de câte 200.
 Panoul „Rezultate” arată fișierele *_iesire.json scrise de scripturile R prin iesire.R — fiecare model cu tabelul
-coeficienților, N, grupuri, eroare și R² — și rapoartele de comparație cu Python (comparatie*.md).
+coeficienților, N, grupuri, eroare și R² — și scriptul R care le-a produs. La clic dreapta pe capul unei coloane din
+„Date” apare explicația ei, din <tabel>.variabile.json, dacă scriptul de export l-a scris.
 Serverul citește dosarul la fiecare cerere a listei, deci o rulare nouă se vede la reîncărcarea paginii.
 Ascultă numai pe 127.0.0.1: datele nu pleacă de pe calculator.
 """
@@ -47,6 +48,17 @@ def imparte(linie):
     return next(csv.reader([linie]))
 
 
+def dictionar(nume):
+    """Explicațiile coloanelor, din <set>.variabile.json scris lângă tabel de scriptul care îl exportă:
+    {"rand": ce e un rând, "variabile": {coloană: {"eticheta", "in_regresie", "explicatie"}}}."""
+    baza = nume[:-7] if nume.endswith(".csv.gz") else nume[:-4]
+    p = os.path.join(DOSAR, baza + ".variabile.json")
+    if not os.path.exists(p):
+        return {}
+    with io.open(p, encoding="utf-8") as f:
+        return json.load(f)
+
+
 def rezultate():
     out = []
     for p in sorted(glob.glob(os.path.join(DOSAR, "*_iesire.json"))):
@@ -54,10 +66,7 @@ def rezultate():
             d = json.load(f)
         d["fisier"] = os.path.basename(p)
         out.append(d)
-    comparatii = []
-    for p in sorted(glob.glob(os.path.join(DOSAR, "comparatie*.md"))):
-        comparatii.append({"fisier": os.path.basename(p), "text": io.open(p, encoding="utf-8").read()})
-    return {"iesiri": out, "comparatii": comparatii}
+    return {"iesiri": out}
 
 
 class H(BaseHTTPRequestHandler):
@@ -80,7 +89,8 @@ class H(BaseHTTPRequestHandler):
             if u.path == "/":
                 self.trimite(200, io.open(PAGINA, encoding="utf-8").read(), "text/html; charset=utf-8")
             elif u.path == "/api/seturi":
-                self.json([{"nume": s, "randuri": len(randuri(s)) - 1, "coloane": imparte(randuri(s)[0])} for s in seturi()])
+                self.json([dict({"nume": s, "randuri": len(randuri(s)) - 1, "coloane": imparte(randuri(s)[0])}, **dictionar(s))
+                           for s in seturi()])
             elif u.path == "/api/date":
                 r = randuri(q["set"][0])
                 de_la, cate = int(q.get("de_la", ["0"])[0]), min(int(q.get("cate", ["200"])[0]), 1000)

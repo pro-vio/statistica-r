@@ -31,7 +31,12 @@ iesire_tabel <- function(df, sectiune, titlu) {
 }
 
 iesire_scrie <- function(cale) {
+  # scriptul care a rulat, cu textul lui, ca să stea în panou lângă tabelele pe care le-a produs
+  f <- sub("^--file=", "", grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE))
+  script <- if (length(f)) list(cale = normalizePath(f[1], winslash = "/"),
+                                text = paste(readLines(f[1], encoding = "UTF-8", warn = FALSE), collapse = "\n")) else NULL
   writeLines(jsonlite::toJSON(list(creat = format(Sys.time(), "%Y-%m-%d %H:%M"), r = R.version.string,
-                                   elemente = .iesire$el),
+                                   pachete = list(fixest = as.character(utils::packageVersion("fixest"))),
+                                   script = script, elemente = .iesire$el),
                               auto_unbox = TRUE, digits = NA, na = "null", null = "null"), cale, useBytes = TRUE)
 }
