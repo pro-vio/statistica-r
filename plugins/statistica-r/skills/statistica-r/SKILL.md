@@ -83,6 +83,27 @@ actualizarea lunară nu-l vede, iar biblioteca de după o actualizare majoră nu
    de alta. Toleranța implicită, 0,01, e cea a rotunjirii la două zecimale; dacă rezultatele nu sunt
    rotunjite, se dă `--toleranta` mai mică.
 
+## Previzualizarea: panoul „Date” și panoul „Rezultate”
+
+Utilizatorul vrea să vadă verificarea ca într-un program de statistică, în panoul de previzualizare din
+Claude. `scripts/previzualizare.py <dosar> [port]` pornește un server pe 127.0.0.1 (implicit 8775) cu două
+panouri:
+
+- **Date:** tabelele `.csv` și `.csv.gz` din dosar, rând cu rând, cu numărul rândului și pagini de câte 200;
+- **Rezultate:** în stânga, un arbore pe secțiuni; în dreapta, fiecare model cu tabelul coeficienților
+  (coeficient, eroare standard, t, p), cu N, numărul de grupuri, tipul erorii, R² și formula; apoi notele
+  și raportul de comparație cu Python.
+
+Ca un model să apară în „Rezultate”, scriptul R încarcă `scripts/iesire.R` și cheamă `iesire_model(m,
+sectiune, titlu)` după fiecare estimare, iar la sfârșit `iesire_scrie("<dosar>/<nume>_iesire.json")`.
+Secțiunea se scrie cu „ / ” între niveluri (`"prag / grup / placebo 2024-09"`), iar arborele urmează
+nivelurile. Raportul `compara.py` se scrie în același dosar, ca `comparatie*.md`.
+
+Serverul se pornește din panoul de previzualizare: în `.claude/launch.json` al proiectului se adaugă o
+intrare cu `python <skill>/scripts/previzualizare.py <dosar> 8775`, apoi se cheamă `preview_start` cu
+numele ei. Fiecare proiect are dosarul lui, deci intrarea lui. Panoul „Date” se verifică numărând rândurile
+și coloanele, nu citindu-le: tabelul poate purta date personale.
+
 ## Echivalențele care contează
 
 Detaliile, cu formulele: `references/echivalente-python-r.md`. Pe scurt, ce trebuie potrivit ca cifrele
@@ -100,5 +121,7 @@ să iasă la fel:
 
 - `scripts/r_local.py` — găsește R, ține biblioteca pe D:, actualizează lunar, rulează scripturi R.
 - `scripts/compara.py` — compară două JSON-uri de rezultate, cifră cu cifră.
+- `scripts/iesire.R` — adună modelele unei rulări R pentru panoul „Rezultate”.
+- `scripts/previzualizare.py` și `previzualizare.html` — serverul cu panourile „Date” și „Rezultate”.
 - `pachete.txt` — pachetele pe care le instalează și le actualizează `r_local.py`.
 - `references/echivalente-python-r.md` — corespondențele dintre estimatorii scriși în numpy și cei din R.

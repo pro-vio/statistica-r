@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Statistica R</title>
+<style>
+:root { --fond:#fff; --panou:#f4f5f7; --text:#1d2128; --slab:#646b76; --linie:#d6d9de; --accent:#2f5d9e; --sel:#e3ecf8; --rand:#fafbfc; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --fond:#17191d; --panou:#1f2228; --text:#e6e8eb; --slab:#9aa1ab; --linie:#353a42; --accent:#7ea6e0; --sel:#26344a; --rand:#1b1e23; } }
+:root[data-theme="dark"] { --fond:#17191d; --panou:#1f2228; --text:#e6e8eb; --slab:#9aa1ab; --linie:#353a42; --accent:#7ea6e0; --sel:#26344a; --rand:#1b1e23; }
+* { box-sizing:border-box; }
+html, body { margin:0; height:100%; background:var(--fond); color:var(--text); font:13px/1.4 "Segoe UI", system-ui, sans-serif; }
+body { display:flex; flex-direction:column; }
+header { display:flex; align-items:center; gap:4px; padding:6px 10px 0; background:var(--panou); border-bottom:1px solid var(--linie); }
+header .tab { padding:6px 14px; border:1px solid transparent; border-bottom:none; border-radius:4px 4px 0 0; cursor:pointer; color:var(--slab); background:none; font:inherit; }
+header .tab.activ { background:var(--fond); color:var(--text); border-color:var(--linie); margin-bottom:-1px; }
+header .info { margin-left:auto; color:var(--slab); padding-bottom:6px; }
+main { flex:1; min-height:0; display:flex; }
+.panou { flex:1; min-height:0; display:none; }
+.panou.activ { display:flex; }
+/* Date */
+#date { flex-direction:column; }
+.bara { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:6px 10px; border-bottom:1px solid var(--linie); }
+.bara select, .bara input, .bara button { font:inherit; color:var(--text); background:var(--fond); border:1px solid var(--linie); border-radius:3px; padding:2px 6px; }
+.bara input { width:90px; }
+.grila { flex:1; overflow:auto; }
+table.g { border-collapse:collapse; font-variant-numeric:tabular-nums; }
+table.g th, table.g td { border:1px solid var(--linie); padding:2px 8px; white-space:nowrap; }
+table.g th { position:sticky; top:0; background:var(--panou); font-weight:600; text-align:left; }
+table.g td.nr, table.g th.nr { background:var(--panou); color:var(--slab); text-align:right; position:sticky; left:0; }
+table.g th.nr { z-index:2; }
+table.g td.num { text-align:right; }
+table.g tr:nth-child(even) td:not(.nr) { background:var(--rand); }
+/* Rezultate */
+#rez { flex-direction:row; }
+nav { width:300px; min-width:200px; overflow:auto; border-right:1px solid var(--linie); background:var(--panou); padding:6px 0; }
+nav details { padding-left:12px; }
+nav summary { cursor:pointer; padding:1px 4px; }
+nav .frunza { display:block; padding:1px 4px 1px 16px; cursor:pointer; color:var(--text); text-decoration:none; border-radius:3px; }
+nav .frunza:hover, nav .frunza.sel { background:var(--sel); }
+.foaie { flex:1; overflow:auto; padding:14px 22px 40px; }
+.el { margin:0 0 26px; }
+.el h3 { font-size:14px; margin:0 0 2px; }
+.el .unde { color:var(--slab); font-size:12px; margin-bottom:6px; }
+table.o { border-collapse:collapse; font-variant-numeric:tabular-nums; min-width:420px; }
+table.o caption { text-align:left; font-weight:600; padding-bottom:4px; }
+table.o th, table.o td { padding:3px 12px; }
+table.o thead th { border-top:2px solid var(--text); border-bottom:1px solid var(--text); text-align:right; font-weight:600; }
+table.o thead th:first-child, table.o td:first-child { text-align:left; }
+table.o tbody tr:last-child td { border-bottom:2px solid var(--text); }
+table.o td { text-align:right; }
+.note { color:var(--slab); font-size:12px; margin-top:4px; }
+.nota { border-left:3px solid var(--accent); padding:4px 10px; background:var(--panou); }
+.md table { border-collapse:collapse; margin:6px 0; }
+.md th, .md td { border:1px solid var(--linie); padding:2px 8px; }
+.gol { color:var(--slab); padding:20px; }
+@media (max-width:700px) { nav { width:42%; min-width:0; } .foaie { padding:10px 12px; } }
+</style>
+</head>
+<body>
+<header>
+  <button class="tab activ" data-p="date">Date</button>
+  <button class="tab" data-p="rez">Rezultate</button>
+  <span class="info" id="info"></span>
+</header>
+<main>
+  <section class="panou activ" id="date">
+    <div class="bara">
+      <select id="set"></select>
+      <button id="inapoi">‹</button>
+      <span id="poz"></span>
+      <button id="inainte">›</button>
+      <label>la rândul <input id="sari" type="number" min="1"></label>
+    </div>
+    <div class="grila"><table class="g" id="grila"></table></div>
+  </section>
+  <section class="panou" id="rez">
+    <nav id="arbore"></nav>
+    <div class="foaie" id="foaie"><div class="gol">Alege din stânga.</div></div>
+  </section>
+</main>
+<script>
+const PAG = 200;
+let seturi = [], setCurent = null, deLa = 0, R = null;
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+document.querySelectorAll(".tab").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".tab").forEach(x => x.classList.toggle("activ", x === b));
+  document.querySelectorAll(".panou").forEach(x => x.classList.toggle("activ", x.id === b.dataset.p));
+  if (b.dataset.p === "rez" && !R) incarcaRezultate();
+});
+
+async function incarcaSeturi() {
+  seturi = await (await fetch("/api/seturi")).json();
+  $("set").innerHTML = seturi.map((s, i) => `<option value="${i}">${esc(s.nume)}</option>`).join("");
+  if (!seturi.length) { $("grila").innerHTML = '<tr><td class="gol">Niciun tabel în dosar.</td></tr>'; return; }
+  setCurent = seturi[0]; deLa = 0; arataDate();
+}
+$("set").onchange = e => { setCurent = seturi[+e.target.value]; deLa = 0; arataDate(); };
+$("inapoi").onclick = () => { deLa = Math.max(0, deLa - PAG); arataDate(); };
+$("inainte").onclick = () => { if (deLa + PAG < setCurent.randuri) { deLa += PAG; arataDate(); } };
+$("sari").onchange = e => { const r = Math.min(Math.max(1, +e.target.value), setCurent.randuri); deLa = Math.floor((r - 1) / PAG) * PAG; arataDate(); };
+
+async function arataDate() {
+  const s = setCurent;
+  const d = await (await fetch(`/api/date?set=${encodeURIComponent(s.nume)}&de_la=${deLa}&cate=${PAG}`)).json();
+  const num = v => v !== "" && !isNaN(v);
+  $("grila").innerHTML = "<thead><tr><th class='nr'></th>" + s.coloane.map(c => `<th>${esc(c)}</th>`).join("") + "</tr></thead><tbody>" +
+    d.randuri.map((r, i) => `<tr><td class="nr">${(deLa + i + 1).toLocaleString("ro-RO")}</td>` +
+      r.map(v => `<td class="${num(v) ? "num" : ""}">${esc(v)}</td>`).join("") + "</tr>").join("") + "</tbody>";
+  $("poz").textContent = `rândurile ${(deLa + 1).toLocaleString("ro-RO")}–${Math.min(deLa + PAG, s.randuri).toLocaleString("ro-RO")} din ${s.randuri.toLocaleString("ro-RO")}`;
+  $("info").textContent = `${s.nume}: ${s.randuri.toLocaleString("ro-RO")} rânduri, ${s.coloane.length} variabile`;
+  document.querySelector(".grila").scrollTop = 0;
+}
+
+// Rezultate: arbore din secțiuni („a / b / c”), apoi elementele secțiunii alese
+async function incarcaRezultate() {
+  R = await (await fetch("/api/rezultate")).json();
+  const radacina = { copii: new Map(), elemente: [] };
+  const nod = cale => { let n = radacina; for (const p of cale) { if (!n.copii.has(p)) n.copii.set(p, { copii: new Map(), elemente: [] }); n = n.copii.get(p); } return n; };
+  R.comparatii.forEach(c => nod(["Comparația cu Python", c.fisier]).elemente.push({ tip: "md", titlu: c.fisier, text: c.text }));
+  R.iesiri.forEach(f => f.elemente.forEach(e => nod([f.fisier.replace(/_iesire\.json$/, "")].concat(e.sectiune.split(" / "))).elemente.push(e)));
+  const frunze = [];
+  const randeaza = (n, nume, adancime) => {
+    let h = "";
+    for (const [k, c] of n.copii) {
+      if (c.copii.size) h += `<details ${adancime < 1 ? "open" : ""}><summary>${esc(k)}</summary>${randeaza(c, k, adancime + 1)}</details>`;
+      else { frunze.push(c); h += `<a class="frunza" data-i="${frunze.length - 1}">${esc(k)} <span style="color:var(--slab)">(${c.elemente.length})</span></a>`; }
+      if (c.copii.size && c.elemente.length) { frunze.push(c); h += `<a class="frunza" data-i="${frunze.length - 1}">${esc(k)}</a>`; }
+    }
+    return h;
+  };
+  $("arbore").innerHTML = randeaza(radacina, "", 0) || '<div class="gol">Niciun rezultat în dosar.</div>';
+  $("arbore").querySelectorAll(".frunza").forEach(a => a.onclick = () => {
+    $("arbore").querySelectorAll(".frunza").forEach(x => x.classList.toggle("sel", x === a));
+    arataElemente(frunze[+a.dataset.i].elemente);
+  });
+  const prima = $("arbore").querySelector(".frunza"); if (prima) prima.click();
+}
+
+const f = (v, z) => v === null || v === undefined ? "." : (+v).toLocaleString("ro-RO", { minimumFractionDigits: z, maximumFractionDigits: z });
+const fp = p => p === null || p === undefined ? "." : (p < 0.001 ? "<0,001" : f(p, 3));
+
+function arataElemente(el) {
+  $("foaie").innerHTML = el.map(e => {
+    const unde = e.sectiune ? `<div class="unde">${esc(e.sectiune)}</div>` : "";
+    if (e.tip === "model") {
+      return `<div class="el"><h3>${esc(e.titlu)}</h3>${unde}<table class="o"><thead><tr><th></th>${e.coloane.map(c => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>` +
+        e.randuri.map(r => `<tr><td>${esc(r.nume)}</td><td>${f(r.valori[0], 4)}</td><td>${f(r.valori[1], 4)}</td><td>${f(r.valori[2], 2)}</td><td>${fp(r.valori[3])}</td></tr>`).join("") +
+        `</tbody></table><div class="note">N = ${f(e.n, 0)}; grupuri = ${f(e.grupuri, 0)}; eroarea: ${esc(e.eroare)}; R² = ${f(e.r2, 4)}<br>${esc(e.formula)}</div></div>`;
+    }
+    if (e.tip === "tabel") {
+      return `<div class="el"><h3>${esc(e.titlu)}</h3>${unde}<table class="o"><thead><tr>${e.coloane.map(c => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>` +
+        e.randuri.map(r => "<tr>" + r.map(v => `<td>${typeof v === "number" ? f(v, 4) : esc(v)}</td>`).join("") + "</tr>").join("") + "</tbody></table></div>";
+    }
+    if (e.tip === "nota") return `<div class="el"><h3>${esc(e.titlu)}</h3>${unde}<div class="nota">${esc(e.text)}</div></div>`;
+    if (e.tip === "md") return `<div class="el md">${md(e.text)}</div>`;
+    return "";
+  }).join("");
+  $("foaie").scrollTop = 0;
+}
+
+function md(t) {
+  const linii = t.split("\n"); let h = "", tabel = [];
+  const inchide = () => { if (tabel.length) { h += "<table>" + tabel.filter(r => !/^\|[-| ]+\|$/.test(r)).map((r, i) => "<tr>" + r.slice(1, -1).split("|").map(c => i ? `<td>${esc(c.trim())}</td>` : `<th>${esc(c.trim())}</th>`).join("") + "</tr>").join("") + "</table>"; tabel = []; } };
+  for (const l of linii) {
+    if (l.startsWith("|")) { tabel.push(l.trim()); continue; }
+    inchide();
+    if (l.startsWith("## ")) h += `<h3>${esc(l.slice(3))}</h3>`;
+    else if (l.startsWith("# ")) h += `<h3>${esc(l.slice(2))}</h3>`;
+    else if (l.startsWith("- ")) h += `<div>• ${esc(l.slice(2))}</div>`;
+    else if (l.trim()) h += `<p>${esc(l)}</p>`;
+  }
+  inchide(); return h;
+}
+
+incarcaSeturi();
+</script>
+</body>
+</html>

@@ -50,6 +50,7 @@ def mediu(lib):
     e = dict(os.environ)
     e["R_LIBS_USER"] = lib
     e["R_LIBS"] = lib
+    e["STATISTICA_R_SKILL"] = os.path.dirname(os.path.dirname(os.path.abspath(__file__))).replace("\\", "/")
     return e
 
 
