@@ -1,0 +1,8 @@
+{
+  "name": "statistica-r",
+  "description": "A Claude Code skill that checks statistical estimates made in Python by redoing them in R, locally, on the same table (`fixest`, clustered standard errors CR1), and comparing the two result files number by number. It also keeps R and its packages up to date by itself, at the first call after a month has passed.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Viorel Proteasa"
+  }
+}

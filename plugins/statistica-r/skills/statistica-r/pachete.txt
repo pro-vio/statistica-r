@@ -1,0 +1,6 @@
+# pachetele pe care le instalează și le actualizează r_local.py, câte unul pe rând
+fixest
+sandwich
+data.table
+jsonlite
+R.utils
